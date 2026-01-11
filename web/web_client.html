@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Leonie Interface</title>
+
+  <style>
+    :root {
+      --bg-start: #9adcf3;
+      --bg-end: #4fc1e8;
+
+      --happy: #f6c453;
+      --sad: #6fa8dc;
+      --angry: #e06666;
+      --neutral: #a4a4a4;
+
+      --white: #ffffff;
+      --shadow: 0 10px 30px rgba(0,0,0,0.15);
+      --radius: 18px;
+      --font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background: linear-gradient(180deg, var(--bg-start), var(--bg-end));
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 480px;
+      padding: 72px 20px 40px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 28px;
+    }
+
+    @media (min-width: 900px) {
+      .app { max-width: 720px; padding: 80px 48px 48px; }
+    }
+
+    .hint {
+      max-width: 520px;
+      text-align: center;
+      font-size: 15px;
+      color: rgba(0,0,0,0.65);
+      background: rgba(255,255,255,0.35);
+      padding: 10px 16px;
+      border-radius: 12px;
+      backdrop-filter: blur(6px);
+    }
+
+    .emotions {
+      display: flex;
+      gap: 24px;
+    }
+
+    .emotion-btn {
+      width: 64px;
+      height: 64px;
+      border-radius: 16px;
+      border: none;
+      cursor: pointer;
+      font-size: 28px;
+      box-shadow: var(--shadow);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      -webkit-tap-highlight-color: transparent;
+      outline: none;
+      user-select: none;
+    }
+
+    .emotion-btn:hover { transform: translateY(-2px); box-shadow: 0 14px 34px rgba(0,0,0,0.2); }
+
+    #emotion-happy { background: var(--happy); }
+    #emotion-sad   { background: var(--sad); }
+    #emotion-angry { background: var(--angry); }
+    #emotion-neutral { background: var(--neutral); }
+
+    .emotion-btn.active {
+      transform: scale(1.1);
+      border: 2px solid #fff;
+      box-shadow: 0 0 20px 5px rgba(255,255,255,0.8);
+    }
+
+    .message-box {
+      width: 100%;
+      background: var(--white);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 16px;
+      display: flex;
+      align-items: flex-end;
+      gap: 12px;
+    }
+
+    textarea {
+      width: 100%;
+      border: none;
+      resize: none;
+      font-size: 16px;
+      outline: none;
+      min-height: 80px;
+      font-family: var(--font);
+    }
+
+    textarea::placeholder { color: #888; }
+
+    .send-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      border: none;
+      cursor: pointer;
+      background: #e9eef3;
+      font-size: 20px;
+    }
+
+    .mute-btn {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(255,255,255,0.25);
+      backdrop-filter: blur(6px);
+      font-size: 28px;
+      cursor: pointer;
+      box-shadow: var(--shadow);
+      transition: transform 0.15s ease;
+    }
+
+    .mute-btn:hover { transform: scale(1.05); }
+    .mute-btn:active { transform: scale(0.95); }
+
+    #log {
+      width: 100%;
+      max-height: 150px;
+      overflow-y:auto;
+      border:1px solid #ccc;
+      padding:10px;
+      font-size: 14px;
+      background: rgba(255,255,255,0.8);
+      border-radius: 12px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <div id="hint-text" class="hint">
+      Wähle eine Stimmung und/oder sende eine Nachricht an Leonie.
+    </div>
+
+    <div class="emotions">
+      <button id="emotion-happy" class="emotion-btn">😊</button>
+      <button id="emotion-sad"   class="emotion-btn">☹️</button>
+      <button id="emotion-angry" class="emotion-btn">😠</button>
+      <button id="emotion-neutral" class="emotion-btn">😐</button>
+    </div>
+
+    <div class="message-box">
+      <textarea id="message-input" placeholder="Schreibe eine Nachricht an Leonie ..."></textarea>
+      <button id="send-button" class="send-btn" aria-label="senden">➤</button>
+    </div>
+
+    <button id="mute-button" class="mute-btn" data-muted="false" aria-label="mute">🔊</button>
+
+    <div id="log"></div>
+
+  </div>
+
+  <script>
+    console.log("SCRIPT LOADED");
+    const api = window.location.origin;
+    const wsURL = api.replace("http","ws") + "/ws/events";
+
+    function log(msg){
+      const el = document.getElementById('log');
+      el.innerHTML += `<div>${new Date().toLocaleTimeString()} — ${msg}</div>`;
+      el.scrollTop = el.scrollHeight;
+    }
+
+    // ---------- Emotion Buttons ----------
+    const emotionButtons = document.querySelectorAll(".emotion-btn");
+    console.log("Emotion buttons found:", emotionButtons.length);
+    
+    let selectedEmotion = null;
+
+    emotionButtons.forEach(btn => {
+      btn.addEventListener("click", () => {
+        const isActive = btn.classList.contains("active");
+
+        emotionButtons.forEach(b => b.classList.remove("active"));
+
+        if (!isActive) {
+          btn.classList.add("active");
+          selectedEmotion = btn.id;
+        } else {
+          selectedEmotion = null;
+        }
+
+        console.log("Emotion selected:", selectedEmotion);
+      });
+    });
+
+    // ---------- Send Message ----------
+    document.getElementById('send-button').onclick = async () => {
+      const text = document.getElementById('message-input').value;
+
+      await fetch(api + "/speak", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({
+          text,
+          emotion: selectedEmotion
+        })
+      });
+
+      log(`Gesendet: ${text} ${selectedEmotion ? '('+selectedEmotion+')' : ''}`);
+
+      document.getElementById('message-input').value = '';
+      selectedEmotion = null;
+      emotionButtons.forEach(b => b.classList.remove("active"));
+    };
+    // ---------- Mute Toggle ----------
+    const muteBtn = document.getElementById("mute-button");
+    muteBtn.addEventListener("click", () => {
+      const isMuted = muteBtn.dataset.muted === "true";
+
+      muteBtn.dataset.muted = String(!isMuted);
+      muteBtn.textContent = isMuted ? "🔊" : "🔇";
+
+      fetch(api + (isMuted ? "/unmute" : "/mute"), { method: "POST" });
+      log(isMuted ? "Unmuted" : "Muted");
+    });
+
+    // ---------- WebSocket ----------
+    const ws = new WebSocket(wsURL);
+    ws.onopen = () => log("WebSocket connected");
+    ws.onmessage = ev => log(ev.data);
+    ws.onerror = () => log("WS ERROR");
+    ws.onclose = () => log("WS CLOSED");
+</script>
+</body>
+</html>

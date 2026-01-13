@@ -1,134 +1,65 @@
-# main.py
-import threading
-import queue
-import asyncio
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 import uvicorn
+
 from unity_connector import UnityConversationConnector
 
 
 app = FastAPI()
 unity_connector = UnityConversationConnector()
 
-# Mount /web -> ./web/
+# Web UI bereitstellen
 app.mount("/web", StaticFiles(directory="web"), name="web")
 
-# Will be injected from agent.py:
-# app.state.loop = ...
-# app.state.tts_engine = ...
-# app.state.status_queue = ...
-"""
+
 @app.post("/speak")
 async def speak(request: Request):
     body = await request.json()
-    text = body.get("text", "")
-    if not text:
-        return JSONResponse({"error": "text missing"}, status_code=400)
 
-    tts_engine = getattr(app.state, "tts_engine", None)
-    loop = getattr(app.state, "loop", None)
-
-    if not tts_engine or not loop:
-        return JSONResponse({"error": "server not ready"}, status_code=503)
-
-    asyncio.run_coroutine_threadsafe(tts_engine.speak(text), loop)
-    return JSONResponse({"status": "accepted"}, status_code=202)
-"""
-@app.post("/speak")
-async def speak(request: Request):
-    body = await request.json()
-    text = body.get("text", "")
+    text = body.get("text", "").strip()
     emotion_id = body.get("emotion")
 
     if not text:
-        return JSONResponse({"error": "text missing"}, status_code=400)
+        return JSONResponse(
+            {"error": "text missing"},
+            status_code=400
+        )
 
-    # --- Emotion → Unity (ALT-KOMPATIBEL) ---
+    print("WEB → PYTHON:", repr(text), emotion_id)
+
+    # Emotion-Mapping (Web → Unity)
     emotion_map = {
         "emotion-happy": ("happy", 70),
-        "emotion-sad": ("sad", 40),
+        "emotion-sad": ("sad", 70),
         "emotion-angry": ("angry", 90),
+        "emotion-neutral": ("neutral", 50),
+        None: ("neutral", 50),
     }
 
-    if emotion_id in emotion_map:
-        emotion, value = emotion_map[emotion_id]
-        unity_connector.send_emotion(emotion, value)
-
-    # --- TTS ---
-    tts_engine = getattr(app.state, "tts_engine", None)
-    loop = getattr(app.state, "loop", None)
-
-    if not tts_engine or not loop:
-        return JSONResponse({"error": "server not ready"}, status_code=503)
-
-    asyncio.run_coroutine_threadsafe(
-        tts_engine.speak(text),
-        loop
+    emotion, value = emotion_map.get(
+        emotion_id,
+        ("neutral", 50)
     )
 
-    return JSONResponse({"status": "accepted"}, status_code=202)
+    unity_connector.send_emotion(
+        emotion=emotion,
+        value=value,
+        text=text
+    )
 
-@app.post("/stop")
-async def stop():
-    tts_engine = getattr(app.state, "tts_engine", None)
-    loop = getattr(app.state, "loop", None)
-
-    if not tts_engine or not loop:
-        return JSONResponse({"error": "server not ready"}, status_code=503)
-
-    loop.call_soon_threadsafe(tts_engine.stop)
-    return JSONResponse({"status": "stopped"})
+    return JSONResponse(
+        {"status": "sent to unity"},
+        status_code=200
+    )
 
 
-@app.post("/mute")
-async def mute():
-    tts_engine = getattr(app.state, "tts_engine", None)
-    loop = getattr(app.state, "loop", None)
-
-    if not tts_engine or not loop:
-        return JSONResponse({"error": "server not ready"}, status_code=503)
-
-    loop.call_soon_threadsafe(tts_engine.mute)
-    return JSONResponse({"status": "muted"})
-
-
-@app.post("/unmute")
-async def unmute():
-    tts_engine = getattr(app.state, "tts_engine", None)
-    loop = getattr(app.state, "loop", None)
-
-    if not tts_engine or not loop:
-        return JSONResponse({"error": "server not ready"}, status_code=503)
-
-    loop.call_soon_threadsafe(tts_engine.unmute)
-    return JSONResponse({"status": "unmuted"})
-
-
-@app.websocket("/ws/events")
-async def ws_events(ws: WebSocket):
-    await ws.accept()
-
-    status_queue: queue.Queue = getattr(app.state, "status_queue", None)
-    if status_queue is None:
-        await ws.send_json({"error": "status_queue missing"})
-        await ws.close()
-        return
-
-    try:
-        while True:
-            status = await asyncio.to_thread(status_queue.get)
-            await ws.send_json({"event": status})
-    except WebSocketDisconnect:
-        return
-
-
-def run_api_server(host="0.0.0.0", port=8000):
-    uvicorn.run("main:app", host=host, port=port, log_level="info")
-
-
-def start_api_in_thread(host="0.0.0.0", port=8000):
-    thread = threading.Thread(target=run_api_server, kwargs={"host": host, "port": port}, daemon=True)
-    thread.start()
-    return thread
+if __name__ == "__main__":
+    print("Python → Unity Bridge gestartet")
+    print("Web UI: http://localhost:8000/web/web_client.html")
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        log_level="info"
+    )

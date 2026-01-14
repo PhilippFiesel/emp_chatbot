@@ -5,6 +5,7 @@ from connection import Connection
 UNITY_IP = "127.0.0.1"
 UNITY_TX_PORT = 8820  
 
+
 class UnityConversationConnector:
     def __init__(self):
         self.conn = Connection(UNITY_IP, UNITY_TX_PORT)
@@ -30,4 +31,17 @@ class UnityConversationConnector:
         self.conn.send(encoded)
 
         print("→ UNITY:", pdu)
+    
+    def send_mute(self, muted: bool):
+        pdu = {
+            "type": "mute",
+            "muted": muted
+        }
+
+        encoded = base64.b64encode(
+            json.dumps(pdu).encode("utf-8")
+        )
+
+        self.conn.send(encoded)
+        print("→ UNITY MUTE:", pdu)
 

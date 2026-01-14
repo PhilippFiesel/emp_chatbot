@@ -181,6 +181,7 @@
     console.log("SCRIPT LOADED");
     const api = window.location.origin;
     const wsURL = api.replace("http","ws") + "/ws/events";
+    let muteTimeout = null;
 
     function log(msg){
       const el = document.getElementById('log');
@@ -188,6 +189,11 @@
       el.scrollTop = el.scrollHeight;
     }
 
+    function setMuted(muted) {
+          const muteBtn = document.getElementById("mute-button");
+          muteBtn.dataset.muted = String(muted);
+          muteBtn.textContent = muted ? "🔇" : "🔊";
+        }
     // ---------- Emotion Buttons ----------
     const emotionButtons = document.querySelectorAll(".emotion-btn");
     console.log("Emotion buttons found:", emotionButtons.length);
@@ -195,7 +201,7 @@
     let selectedEmotion = null;
 
     emotionButtons.forEach(btn => {
-      btn.addEventListener("click", () => {
+      btn.addEventListener("click", async () => {
         const isActive = btn.classList.contains("active");
 
         emotionButtons.forEach(b => b.classList.remove("active"));
@@ -203,11 +209,20 @@
         if (!isActive) {
           btn.classList.add("active");
           selectedEmotion = btn.id;
+
+          // Emotion bei click an Backend schicken
+          await fetch(api + "/emotion", {
+            method: "POST",
+            headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({
+              emotion: selectedEmotion
+            })
+          });
+
+          log(`Emotion gesetzt: ${selectedEmotion}`);
         } else {
           selectedEmotion = null;
         }
-
-        console.log("Emotion selected:", selectedEmotion);
       });
     });
 
@@ -229,25 +244,33 @@
       document.getElementById('message-input').value = '';
       selectedEmotion = null;
       emotionButtons.forEach(b => b.classList.remove("active"));
+
+      //Auto-unmute on new message
+      setMuted(false);
     };
     // ---------- Mute Toggle ----------
     const muteBtn = document.getElementById("mute-button");
     muteBtn.addEventListener("click", () => {
       const isMuted = muteBtn.dataset.muted === "true";
 
-      muteBtn.dataset.muted = String(!isMuted);
-      muteBtn.textContent = isMuted ? "🔊" : "🔇";
+      // Toggle UI
+      setMuted(!isMuted);
 
+      // Inform the backend
       fetch(api + (isMuted ? "/unmute" : "/mute"), { method: "POST" });
       log(isMuted ? "Unmuted" : "Muted");
+
+      //AUTO-UNMUTE after 5 seconds
+      if (!isMuted) {
+        if (muteTimeout) clearTimeout(muteTimeout);
+
+        muteTimeout = setTimeout(() => {
+          setMuted(false);
+          log("Auto-Unmute (timeout)");
+        }, 5000);
+      }
     });
 
-    // ---------- WebSocket ----------
-    const ws = new WebSocket(wsURL);
-    ws.onopen = () => log("WebSocket connected");
-    ws.onmessage = ev => log(ev.data);
-    ws.onerror = () => log("WS ERROR");
-    ws.onclose = () => log("WS CLOSED");
 </script>
 </body>
 </html>

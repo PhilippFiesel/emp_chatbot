@@ -9,9 +9,31 @@ from unity_connector import UnityConversationConnector
 app = FastAPI()
 unity_connector = UnityConversationConnector()
 
-# Web UI bereitstellen
+# Deploy Web UI
 app.mount("/web", StaticFiles(directory="web"), name="web")
 
+@app.post("/emotion")
+async def set_emotion(request: Request):
+    body = await request.json()
+    emotion_id = body.get("emotion")
+
+    emotion_map = {
+        "emotion-happy": ("happy", 70),
+        "emotion-sad": ("sad", 70),
+        "emotion-angry": ("angry", 90),
+        "emotion-neutral": ("neutral", 50),
+    }
+
+    emotion, value = emotion_map.get(emotion_id, ("neutral", 50))
+
+    unity_connector.send_emotion(
+        emotion=emotion,
+        value=value,
+        text=""  
+    )
+
+    print("Emotion-only → UNITY:", emotion)
+    return JSONResponse({"status": "emotion sent"}, status_code=200)
 
 @app.post("/speak")
 async def speak(request: Request):
@@ -28,7 +50,7 @@ async def speak(request: Request):
 
     print("WEB → PYTHON:", repr(text), emotion_id)
 
-    # Emotion-Mapping (Web → Unity)
+    # Emotion-Mapping (Web -> Unity)
     emotion_map = {
         "emotion-happy": ("happy", 70),
         "emotion-sad": ("sad", 70),
@@ -52,6 +74,17 @@ async def speak(request: Request):
         {"status": "sent to unity"},
         status_code=200
     )
+
+@app.post("/mute")
+async def mute():
+    unity_connector.send_mute(True)
+    return JSONResponse({"status": "muted"}, status_code=200)
+
+
+@app.post("/unmute")
+async def unmute():
+    unity_connector.send_mute(False)
+    return JSONResponse({"status": "unmuted"}, status_code=200)
 
 
 if __name__ == "__main__":

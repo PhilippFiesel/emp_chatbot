@@ -58,10 +58,11 @@ http://localhost:8000/web/web_client.html
 Replace localhost in the URL with your host machine’s local IP address.
 Your phone must be connected to the same network as the host PC.
 
-Note:
+⚠️Note:
 This does not work on university networks due to firewall restrictions.
 
  
+
 
 
 

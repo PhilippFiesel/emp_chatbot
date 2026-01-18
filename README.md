@@ -10,9 +10,7 @@ cd <your-repository-folder>
 ```
 ## 2. Configure Environment Variables
 
-Rename the example environment file:
-
-mv .env.example .env.local
+Rename the example environment file ".env.example" to ".env.local"
 
 ## 3. Add API Keys
 
@@ -64,6 +62,7 @@ Note:
 This does not work on university networks due to firewall restrictions.
 
  
+
 
 
 

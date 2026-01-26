@@ -1,9 +1,10 @@
-python-livekit  
 livekit-agents     
-fastapi uvicorn  
+fastapi
+uvicorn  
 python-dotenv  
 livekit-plugins-azure      
 livekit-plugins-openai   
 livekit-plugins-noise-cancellation
 livekit-plugins-silero   
 livekit-plugins-turn-detector 
+
